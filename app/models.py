@@ -142,16 +142,16 @@ class UserBase(SQLModel):
 class UserCreate(UserBase):
     password: str    
 
-class UserLogin(UserBase):
-    pass
+class UserShow(UserBase):
+    created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 class User(UserBase, table=True):
     id: int = Field(default=None, primary_key=True)
-    if_applicant: bool = Field(default= False)
-    applicant: "Applicant" = Relationship(back_populates = "user", sa_relationship_kwargs={"uselist": False}) #one-to-one relationship.SQLAlchemy
+    # if_applicant: bool = Field(default= False)
+    applicant: Optional["Applicant"] = Relationship(back_populates = "user",sa_relationship_kwargs={"uselist": False})
     votes: list["Vote"] = Relationship(back_populates="user")
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     @property
-    def is_applicant(self):
+    def is_applicant(self) -> bool:
         return self.if_applicant and self.applicant is not None

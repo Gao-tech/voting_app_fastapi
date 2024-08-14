@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Path, Query, Response, status, HTTPException, Depends
-from ..models import Applicant, ApplicantCreate, ApplicantUpdate, Experience, PositionURLChoice, StatusURLChoice
+from ..models import Applicant, ApplicantCreate, ApplicantPosition, ApplicantUpdate, Experience, PositionChoice, PositionURLChoice, StatusURLChoice, ApplicantPosition
 from sqlmodel import Session, select
 from typing import Annotated
 from ..db import get_session
@@ -44,6 +44,21 @@ def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
     # if applicant is None:
     #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
     # return {"applicant_detail": applicant}
+
+
+#make a new endpoint to make sure to check positions before create applicant.
+@router.post("/apply/{applicant_id}", status_code=status.HTTP_201_CREATED)
+def apply_for_positions(applicant_id: int, session: Session = Depends(get_session)):
+    # Validate the number of positions the applicant is applying for
+    current_positions_count = session.exec(
+        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id)).count()
+    
+   # Validate that the applicant is not applying for more than 2 positions
+    if current_positions_count >2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail="An applicant can only apply for a maximum of two positions.")
+    session.commit()
+    return {"message": "Positions applied successfully."}
 
 
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
