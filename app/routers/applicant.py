@@ -30,7 +30,7 @@ async def get_applicants(status: StatusURLChoice | None =  None,
     # return {"message": applicants}
 
 
-@router.get("/applicants/{applicant_id}")
+@router.get("/applicants/{applicant_id}",response_model= Applicant)
 def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
                   session: Session=Depends(get_session)) -> Applicant:
 
@@ -50,11 +50,11 @@ def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
 @router.post("/apply/{applicant_id}", status_code=status.HTTP_201_CREATED)
 def apply_for_positions(applicant_id: int, session: Session = Depends(get_session)):
     # Validate the number of positions the applicant is applying for
-    current_positions_count = session.exec(
-        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id)).count()
+    current_positions_count = len(list(session.exec(
+        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id))))
     
    # Validate that the applicant is not applying for more than 2 positions
-    if current_positions_count >2:
+    if current_positions_count >= 2:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                             detail="An applicant can only apply for a maximum of two positions.")
     session.commit()
@@ -75,8 +75,9 @@ async def create_applicant(applicant_data: ApplicantCreate,
     #                     # disabled=applicant_data.disabled,
     #                     created_at=datetime.now(timezone.utc))
     
+    if applicant_data.user_id is None:
+        raise HTTPException(status_code=400, detail="user_id must be provided") 
     applicant = Applicant.model_validate(applicant_data)
-    
     
     if applicant_data.experience:
         for experience in applicant_data.experience:
@@ -85,7 +86,6 @@ async def create_applicant(applicant_data: ApplicantCreate,
                 description=experience.description, 
                 applicant=applicant) # build relationship with applicant
             session.add(experience_obj)
-
 
     session.commit()  #after commit() will get id, then refresh to get all the data including primary key
     session.refresh(applicant)
@@ -118,7 +118,7 @@ async def delete_applicant(applicant_id: Annotated[int, Path(title="The Applican
 
 #update function by admin.-> After approval, user can't update. Admin needs to disable user.
 @router.patch("/applicants/{applicant_id}", response_model= Applicant)
-async def update_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID. Updated by Admin")],
+async def update_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID.")],
                            updated_applicant:ApplicantUpdate,
                            session: Session=Depends(get_session)) -> Applicant:
     db_applicant = session.get(Applicant, applicant_id)
@@ -134,6 +134,14 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
     #                 department=updated_applicant.department,
     #                 # disabled=updated_applicant.disabled,
     #                 created_at=datetime.now(timezone.utc))
+
+    current_positions_count = len(list(session.exec(
+        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id))))
+    if "positions" in updated_applicant:
+        new_positions = updated_applicant.positions
+        if current_positions_count + len(new_positions) > 2:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An applicant can only apply for a maximum of two positions.")
+
     applicant = updated_applicant.model_dump(exclude_unset=True)
     db_applicant.sqlmodel_update(applicant)
     session.add(db_applicant)

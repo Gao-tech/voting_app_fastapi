@@ -5,10 +5,11 @@ from app.db import Session, get_session
 
 router = APIRouter(tags=["Users"])
 
-@router.post("/users")
-async def post_user(user_data: UserCreate, session: Session=Depends(get_session))-> UserShow:
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+async def create_user(user_data: UserCreate, session: Session=Depends(get_session))-> UserShow:
     user = User.model_validate(user_data)
- 
+    
+    session.add(user)
     session.commit()  
     session.refresh(user)
     return user
@@ -26,3 +27,4 @@ async def get_users(
 
 
 
+# check user's number of votes

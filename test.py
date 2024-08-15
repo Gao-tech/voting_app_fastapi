@@ -1,5 +1,5 @@
 # 1. SELECTION LOGIC
-
+#consider experience  +5 and 1st priority +5
 def determine_winner(applicants):
     # Sort applicants by score, then by priority (1 takes precedence over 2)
     applicants.sort(key=lambda x: (x['score'], x['priority']), reverse=True)
@@ -18,13 +18,6 @@ def determine_winner(applicants):
     
     return applicants[0]  # Return the applicant with the highest score and priority
 
-# 2. Done the post part. still needs to do patch part limit 2 positions - applicant
-
-@router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
-
-
-@router.patch("/applicants/{applicant_id}", response_model=Applicant)
-
 
 
 # 5. if the status changes:
@@ -35,7 +28,19 @@ def determine_winner(applicants):
 
 # 3. limit user can only vote five application no matter it is first priority or second. -> votes
 
-from fastapi import HTTPException, status
+user_votes = session.exec(
+    select(Vote)
+    .where(Vote.user_id == some_user_id)
+    .join(Vote.applicant_position)
+).all()
+
+votes_count = session.exec(
+    select(func.count(Vote.id))
+    .join(ApplicantPosition)
+    .where(ApplicantPosition.applicant_id == some_applicant_id)
+    .where(ApplicantPosition.position_id == some_position_id)
+).scalar()
+
 
 @router.post("/votes")
 async def cast_vote(applicant_position_id: int, user_id: int, vote_dir: int, session: Session = Depends(get_session)):
@@ -63,20 +68,14 @@ async def cast_vote(applicant_position_id: int, user_id: int, vote_dir: int, ses
 
 
 
+# 2. Done the post part. still needs to do patch part. limit 2 positions - applicant
+
+@router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
+@router.patch("/applicants/{applicant_id}", response_model=Applicant)
+
 
 # Done 4. if user is applicant  -> user  
-@router.post("/users", status_code=status.HTTP_201_CREATED, response_model=User)
-async def create_user(user_data: UserCreate, session: Session = Depends(get_session)) -> User:
-    user = User(**user_data.dict())
-    session.add(user)
-    session.commit()
-    
-    if user.if_applicant:
-        applicant = Applicant(user_id=user.id, fname=user.fname, lname=user.lname, email=user.email)
-        session.add(applicant)
-        session.commit()
-    
-    session.refresh(user)
-    return user
+# @property
+
 
 
