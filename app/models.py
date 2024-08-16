@@ -1,7 +1,7 @@
 import datetime
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from pydantic.types import conint
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -52,21 +52,16 @@ class Experience(ExperienceBase, table=True):
     id: int = Field(default=None, primary_key=True)
     applicant: "Applicant" = Relationship(back_populates="experience")
 
-# class ApplicantPositionBase(SQLModel):   #it started with linked table but I thiink it is good to add id
-#     priority: Priority = Field(index=True)  
-#     applicant_id: int = Field(foreign_key="applicant.id", index=True)
-#     position_id: int = Field(foreign_key="position.id", index=True)
-
-# class ApplicantPosition(ApplicantPositionBase, table=True):
-#     id: int = Field(default=None, primary_key=True)  # Auto-incrementing ID, for other relationship
-#     votes: list["Vote"] = Relationship(back_populates="applicant_position")
-
-class PostionBase(SQLModel):
-    position: PositionChoice
-    priority: Priority
+class PositionBase(SQLModel):
+    position: PositionChoice | None = None
+    priority: Priority | None = None
     applicant_id: int | None = Field(default=None, foreign_key="applicant.id")
 
-class Position(PostionBase, table=True):
+    @field_validator("position", mode="before")
+    def title_case_position(cls, value):
+        return value.title()
+
+class Position(PositionBase, table=True):
     id: int = Field(default=None, primary_key=True)
     applicant: "Applicant" = Relationship(back_populates="position")
     votes: list["Vote"] = Relationship(back_populates="position")
@@ -82,35 +77,23 @@ class Vote(VoteBase, table=True):
     position: Position = Relationship(back_populates="votes")
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
 
-# class PositionBase(SQLModel):
-#     name: PositionChoice = Field(index=True)
-
-#     @field_validator("name", mode="before")
-#     def title_case_position(cls, value):
-#         return value.title()
-
-# class Position(PositionBase, table=True):
-#      id: int | None = Field(default=None, primary_key=True)
-#     #  applicants: list["Applicant"] = Relationship(back_populates="positions", link_model=Position)
-#      applicants: list["Applicant"] = Relationship(back_populates="positions")
-
 class ApplicantBase(SQLModel):
     fname: str = Field(index=True)
     lname: str = Field(index=True)
     email: EmailStr = Field(index=True)
     status: StatusChoice =Field(default="Pending", index=True)  
-    department: DepartmentChoice = Field(index=True)
+    department: DepartmentChoice = Field(default=None, index=True)
     published: bool = False
     user_id: int = Field(default=None, foreign_key="user.id", unique=True)
     
     @field_validator("status", mode="before")
     def title_case_status(cls, value):
         return value.title()
-
+    
 class ApplicantCreate(ApplicantBase):
     experience: list[Experience] | None = None
     position: list[Position] | None =  None
-    
+
 class Applicant(ApplicantBase, table=True):
     id: int = Field(default=None, primary_key=True) 
     experience: list[Experience] = Relationship(back_populates="applicant")
@@ -137,6 +120,16 @@ class UserBase(SQLModel):
     fname: str
     lname: str
     email: EmailStr = Field(unique=True)
+    
+    @model_validator(mode="before")
+    def validate_and_normalize_name(cls, values):
+        f = values.get("fname")
+        l = values.get("lname")
+        
+        if f:
+            values["fname"] = f.title()
+        if l:
+            values["lname"] = l.title()
     
 class UserCreate(UserBase):
     password: str = Field(nullable=False)

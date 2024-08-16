@@ -57,7 +57,11 @@ async def create_applicant(applicant_data: ApplicantCreate,
     if applicant_data.user_id is None:
         raise HTTPException(status_code=400, detail="user_id must be provided") 
     applicant = Applicant.model_validate(applicant_data)
-    
+
+    session.add(applicant)
+    session.commit()  # Commit to generate the applicant.id
+    session.refresh(applicant)  # Refresh to get the id
+
     if applicant_data.experience:
         for experience in applicant_data.experience:
             experience_obj = Experience(
@@ -67,31 +71,16 @@ async def create_applicant(applicant_data: ApplicantCreate,
             session.add(experience_obj)
 
     if applicant_data.position:
-        for position in applicant_data.position:
-    #         # Find the position in the Position table
-    #         position_obj = session.exec(
-    #             select(Position).where(Position.name == position.name)
-    #         ).first()
-
-    #         if not position_obj:
-    #             raise HTTPException(status_code=400, detail=f"Position '{position.name}' does not exist.")
-
-            # Create an Position entry
-            applicant_position_obj = Position(
-                position=position.position,
-                priority=position.priority,
-                applicant_id=applicant.id
-            )   
-            session.add(applicant_position_obj)
-
+        for position_data in applicant_data.position:
+            position_obj = Position(
+                position=position_data.position,
+                priority=position_data.priority,
+                applicant_id=applicant.id)   
+            session.add(position_obj)
+   
     session.commit()  #after commit() will get id, then refresh to get all the data including primary key
     session.refresh(applicant)
     return applicant
-
-    # cursor.execute("""INSERT INTO applicants(fname, lname, email, position, status, published) VALUES(%s,%s,%s,%s,%s,%s) RETURNING *""",(applicant_data.fname, applicant_data.lname, applicant_data.email, applicant_data.position, applicant_data.status, applicant_data.published))
-    # new_applicant = cursor.fetchone()
-    # conn.commit()
-    # return {"data": new_applicant}
 
 
 @router.delete("/applicants/{applicant_id}",status_code=status.HTTP_404_NOT_FOUND)

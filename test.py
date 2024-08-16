@@ -24,9 +24,9 @@ def determine_winner(applicants):
 # 1) from default pending to approved then published will turn to public
 # 2) from default or any other to reject then published turns to private, and disable the applicant...
 
-# 6 Define priority only to be 1 and 2
 
 # 3. limit user can only vote five application no matter it is first priority or second. -> votes
+
 
 user_votes = session.exec(
     select(Vote)
@@ -73,8 +73,11 @@ async def cast_vote(applicant_position_id: int, user_id: int, vote_dir: int, ses
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
 @router.patch("/applicants/{applicant_id}", response_model=Applicant)
 
+# 6  Done  -> Define priority only to be 1 and 2
 
 # Done 4. if user is applicant  -> user  
+
+
 # @property
 
 
@@ -184,3 +187,10 @@ post_applicants = [{
     if deleted_applicant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+
+    # cursor.execute("""INSERT INTO applicants(fname, lname, email, position, status, published) VALUES(%s,%s,%s,%s,%s,%s) RETURNING *""",(applicant_data.fname, applicant_data.lname, applicant_data.email, applicant_data.position, applicant_data.status, applicant_data.published))
+    # new_applicant = cursor.fetchone()
+    # conn.commit()
+    # return {"data": new_applicant}
