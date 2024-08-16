@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Path, Query, Response, status, HTTPException, Depends
-from ..models import Applicant, ApplicantCreate, ApplicantPosition, ApplicantUpdate, Experience, PositionChoice, PositionURLChoice, StatusURLChoice, ApplicantPosition
+from ..models import Applicant, ApplicantCreate, ApplicantUpdate, Experience, PositionURLChoice, StatusURLChoice, Position
 from sqlmodel import Session, select
 from typing import Annotated
 from ..db import get_session
@@ -20,14 +20,9 @@ async def get_applicants(status: StatusURLChoice | None =  None,
     
     if q:
         applicant_list = [app for app in applicant_list if q.lower() in (app.fname +" "+ app.lname).lower() or PositionURLChoice ]
-    
     #q will search the fullname and positions
 
     return applicant_list
-
-    # cursor.execute("""SELECT * FROM applicants""")
-    # applicants = cursor.fetchall()
-    # return {"message": applicants}
 
 
 @router.get("/applicants/{applicant_id}",response_model= Applicant)
@@ -39,19 +34,13 @@ def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
     return applicant
 
-    # cursor.execute("""SELECT * FROM applicants WHERE id = %s""", str(applicant_id))
-    # applicant = cursor.fetchone()
-    # if applicant is None:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
-    # return {"applicant_detail": applicant}
-
 
 #make a new endpoint to make sure to check positions before create applicant.
 @router.post("/apply/{applicant_id}", status_code=status.HTTP_201_CREATED)
 def apply_for_positions(applicant_id: int, session: Session = Depends(get_session)):
     # Validate the number of positions the applicant is applying for
     current_positions_count = len(list(session.exec(
-        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id))))
+        select(Position).where(Position.applicant_id == applicant_id))))
     
    # Validate that the applicant is not applying for more than 2 positions
     if current_positions_count >= 2:
@@ -65,16 +54,6 @@ def apply_for_positions(applicant_id: int, session: Session = Depends(get_sessio
 async def create_applicant(applicant_data: ApplicantCreate,
                            session: Session=Depends(get_session)) -> Applicant:
     
-    # applicant = Applicant(fname=applicant_data.fname, 
-    #                     lname=applicant_data.lname, 
-    #                     email=applicant_data.email, 
-    #                     position=applicant_data.position, 
-    #                     status=applicant_data.status, 
-    #                     published=applicant_data.published,
-    #                     department=applicant_data.department,
-    #                     # disabled=applicant_data.disabled,
-    #                     created_at=datetime.now(timezone.utc))
-    
     if applicant_data.user_id is None:
         raise HTTPException(status_code=400, detail="user_id must be provided") 
     applicant = Applicant.model_validate(applicant_data)
@@ -84,8 +63,26 @@ async def create_applicant(applicant_data: ApplicantCreate,
             experience_obj = Experience(
                 title=experience.title, 
                 description=experience.description, 
-                applicant=applicant) # build relationship with applicant
+                applicant_id=applicant.id) # build relationship with applicant
             session.add(experience_obj)
+
+    if applicant_data.position:
+        for position in applicant_data.position:
+    #         # Find the position in the Position table
+    #         position_obj = session.exec(
+    #             select(Position).where(Position.name == position.name)
+    #         ).first()
+
+    #         if not position_obj:
+    #             raise HTTPException(status_code=400, detail=f"Position '{position.name}' does not exist.")
+
+            # Create an Position entry
+            applicant_position_obj = Position(
+                position=position.position,
+                priority=position.priority,
+                applicant_id=applicant.id
+            )   
+            session.add(applicant_position_obj)
 
     session.commit()  #after commit() will get id, then refresh to get all the data including primary key
     session.refresh(applicant)
@@ -106,14 +103,6 @@ async def delete_applicant(applicant_id: Annotated[int, Path(title="The Applican
     session.delete(applicant)
     session.commit()
     return Response(status_code=status.HTTP_404_NOT_FOUND)
-
-
-    # cursor.execute("""DELETE FROM applicants WHERE id = %s returning *""", (applicant_id,))
-    # deleted_applicant = cursor.fetchone()
-    # conn.commit()
-    # if deleted_applicant is None:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
-    # return Response(status_code=status.HTTP_204_NO_CONTENT)
     
 
 #update function by admin.-> After approval, user can't update. Admin needs to disable user.
@@ -125,18 +114,10 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
 
     if db_applicant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
-    # applicant = Applicant(fname=updated_applicant.fname, 
-    #                 lname=updated_applicant.lname, 
-    #                 email=updated_applicant.email, 
-    #                 position=updated_applicant.position, 
-    #                 status=updated_applicant.status, 
-    #                 published=updated_applicant.published,
-    #                 department=updated_applicant.department,
-    #                 # disabled=updated_applicant.disabled,
-    #                 created_at=datetime.now(timezone.utc))
+
 
     current_positions_count = len(list(session.exec(
-        select(ApplicantPosition).where(ApplicantPosition.applicant_id == applicant_id))))
+        select(Position).where(Position.applicant_id == applicant_id))))
     if "positions" in updated_applicant:
         new_positions = updated_applicant.positions
         if current_positions_count + len(new_positions) > 2:
@@ -150,14 +131,6 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
     
     return db_applicant
 
-
-    # cursor.execute("""UPDATE applicants SET status = %s, published = %s WHERE id = %s RETURNING*""",
-    #                 (applicant.status, applicant.published, str(applicant_id)))
-    # updated_applicant = cursor.fetchone()
-    # conn.commit()
-    # if updated_applicant is None:
-    #     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applican with id {applicant_id} is not found")
-    # return {"data": updated_applicant}
 
 
 

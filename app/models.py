@@ -38,60 +38,10 @@ class DepartmentChoice(str, Enum):
     TEACHING = "Teaching"
     TECHNOLOGY = "Technology"
 
+class Priority(int, Enum):
+    PRIORITY_1 = 1
+    PRIORITY_2 = 2
 
-class ApplicantPositionBase(SQLModel):   #it started with linked table but I thiink it is good to add id
-    id: int = Field(default=None, primary_key=True)  # Auto-incrementing ID, for other relationship
-    priority: int = Field(default=None, index=True)  #1 and 2 and will be limited in the code function
-    applicant_id: int = Field(foreign_key="applicant.id", index=True)
-    position_id: int = Field(foreign_key="position.id", index=True)
-    # applicant_id: int | None = Field(default=None, foreign_key="applicant.id", primary_key=True)
-    # position_id: int | None = Field(default=None, foreign_key="position.id", primary_key=True)
-
-
-    # position_1: PositionChoice | None = None
-    # position_2: PositionChoice | None = None
-    
-    # @model_validator(mode="before")
-    # def validate_and_normalize_positions(cls, values):
-    #     pos1 = values.get("position_1")
-    #     pos2 = values.get("position_2")
-        
-    #     # Title-case the positions
-    #     if pos1:
-    #         values["position_1"] = pos1.title()
-    #     if pos2:
-    #         values["position_2"] = pos2.title()
-        
-    #     # If both positions are the same, set position_2 to None
-    #     if pos1 and pos2 and pos1 == pos2:
-    #         values["position_2"] = None
-        
-    #     return values   
-
-class ApplicantPosition(ApplicantPositionBase, table=True):
-    votes: list["Vote"] = Relationship(back_populates="applicant_position")
-
-# Vote model with a foreign key to ApplicantPosition
-class VoteBase(SQLModel):
-    applicant_position_id: int = Field(foreign_key="applicantposition.id", primary_key=True)
-    user_id: int = Field(foreign_key="user.id")
-    dir: int = Field(default=0)  # Vote direction
-    created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
-
-class Vote(VoteBase, table=True):
-    applicant_position: ApplicantPosition = Relationship(back_populates="votes")
-    user: "User" = Relationship(back_populates="votes")
-
-class PositionBase(SQLModel):
-    id: int | None = Field(default=None, primary_key=True)
-    name: PositionChoice = Field(index=True)
-
-    @field_validator("name", mode="before")
-    def title_case_position(cls, value):
-        return value.title()
-
-class Position(PositionBase, table=True):
-     applicants: list["Applicant"] = Relationship(back_populates="positions", link_model=ApplicantPosition)
 
 class ExperienceBase(SQLModel):
     title: str
@@ -101,6 +51,48 @@ class ExperienceBase(SQLModel):
 class Experience(ExperienceBase, table=True):
     id: int = Field(default=None, primary_key=True)
     applicant: "Applicant" = Relationship(back_populates="experience")
+
+# class ApplicantPositionBase(SQLModel):   #it started with linked table but I thiink it is good to add id
+#     priority: Priority = Field(index=True)  
+#     applicant_id: int = Field(foreign_key="applicant.id", index=True)
+#     position_id: int = Field(foreign_key="position.id", index=True)
+
+# class ApplicantPosition(ApplicantPositionBase, table=True):
+#     id: int = Field(default=None, primary_key=True)  # Auto-incrementing ID, for other relationship
+#     votes: list["Vote"] = Relationship(back_populates="applicant_position")
+
+class PostionBase(SQLModel):
+    position: PositionChoice
+    priority: Priority
+    applicant_id: int | None = Field(default=None, foreign_key="applicant.id")
+
+class Position(PostionBase, table=True):
+    id: int = Field(default=None, primary_key=True)
+    applicant: "Applicant" = Relationship(back_populates="position")
+    votes: list["Vote"] = Relationship(back_populates="position")
+
+# Vote model with a foreign key to Position
+class VoteBase(SQLModel):
+    position_id: int = Field(foreign_key="position.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id",primary_key=True)
+    dir: conint(le=1)  #type: ignore
+
+class Vote(VoteBase, table=True):
+    user: "User" = Relationship(back_populates="votes")
+    position: Position = Relationship(back_populates="votes")
+    created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+# class PositionBase(SQLModel):
+#     name: PositionChoice = Field(index=True)
+
+#     @field_validator("name", mode="before")
+#     def title_case_position(cls, value):
+#         return value.title()
+
+# class Position(PositionBase, table=True):
+#      id: int | None = Field(default=None, primary_key=True)
+#     #  applicants: list["Applicant"] = Relationship(back_populates="positions", link_model=Position)
+#      applicants: list["Applicant"] = Relationship(back_populates="positions")
 
 class ApplicantBase(SQLModel):
     fname: str = Field(index=True)
@@ -117,11 +109,12 @@ class ApplicantBase(SQLModel):
 
 class ApplicantCreate(ApplicantBase):
     experience: list[Experience] | None = None
+    position: list[Position] | None =  None
     
 class Applicant(ApplicantBase, table=True):
     id: int = Field(default=None, primary_key=True) 
     experience: list[Experience] = Relationship(back_populates="applicant")
-    positions: list[Position] = Relationship(back_populates="applicants", link_model=ApplicantPosition)
+    position: list[Position] = Relationship(back_populates="applicant")
     user: "User" = Relationship(back_populates="applicant")
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
     #the Field's default_factory argument ensures that every time an Applicant instance is created without 
@@ -134,10 +127,11 @@ class ApplicantUpdate(SQLModel):
     fname: str | None = None
     lname: str | None = None
     email: EmailStr | None = None
-    positions: PositionChoice | None = None
+    position: PositionChoice | None = None
     status: StatusChoice | None = None
     published: bool | None = False
     department: DepartmentChoice | None = None
+    exprience: str | None =  None
 
 class UserBase(SQLModel):
     fname: str
@@ -152,6 +146,8 @@ class UserShow(UserBase):
 
 class User(UserBase, table=True):
     id: int = Field(default=None, primary_key=True)
+    password: str = Field(nullable=False)
+
     applicant: Optional["Applicant"] = Relationship(back_populates = "user",sa_relationship_kwargs={"uselist": False}) #enhance the relationship one to one
     votes: list["Vote"] = Relationship(back_populates="user")
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))

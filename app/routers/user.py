@@ -2,16 +2,22 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Path, Response, APIRouter, Depends, status
 from app.models import User, UserCreate, UserShow
 from app.db import Session, get_session
+from .. import utils
+
 
 router = APIRouter(tags=["Users"])
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 async def create_user(user_data: UserCreate, session: Session=Depends(get_session))-> UserShow:
+    #hash the password
+    hashed_password = utils.hash(user_data.password)
+    user_data.password = hashed_password
+
     user = User.model_validate(user_data)
-    
     session.add(user)
     session.commit()  
     session.refresh(user)
+
     return user
     
 
