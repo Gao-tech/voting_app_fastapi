@@ -68,8 +68,8 @@ class Position(PositionBase, table=True):
 
 # Vote model with a foreign key to Position
 class VoteBase(SQLModel):
-    position_id: int = Field(foreign_key="position.id", primary_key=True)
-    user_id: int = Field(foreign_key="user.id",primary_key=True)
+    app_pos_id: int = Field(foreign_key="position.id", primary_key=True, ondelete="CASCADE")
+    user_id: int = Field(foreign_key="user.id",primary_key=True, ondelete="CASCADE")
     dir: conint(le=1)  #type: ignore
 
 class Vote(VoteBase, table=True):
@@ -84,18 +84,24 @@ class ApplicantBase(SQLModel):
     status: StatusChoice =Field(default="Pending", index=True)  
     department: DepartmentChoice = Field(default=None, index=True)
     published: bool = False
-    user_id: int = Field(default=None, foreign_key="user.id", unique=True)
     
     @field_validator("status", mode="before")
     def title_case_status(cls, value):
         return value.title()
     
-class ApplicantCreate(ApplicantBase):
+class ApplicantCreate(SQLModel):
+    fname: str
+    lname: str
+    email: EmailStr
+    status: StatusChoice = Field(default="Pending")
+    department: DepartmentChoice
+    published: bool = False
     experience: list[Experience] | None = None
     position: list[Position] | None =  None
 
 class Applicant(ApplicantBase, table=True):
     id: int = Field(default=None, primary_key=True) 
+    user_id: int = Field(default=None, foreign_key="user.id", ondelete="CASCADE", nullable=False)
     experience: list[Experience] = Relationship(back_populates="applicant")
     position: list[Position] = Relationship(back_populates="applicant")
     user: "User" = Relationship(back_populates="applicant")
@@ -110,7 +116,8 @@ class ApplicantUpdate(SQLModel):
     fname: str | None = None
     lname: str | None = None
     email: EmailStr | None = None
-    position: PositionChoice | None = None
+    position: list[PositionChoice] | None = None
+    priority: Priority | None = None
     status: StatusChoice | None = None
     published: bool | None = False
     department: DepartmentChoice | None = None
@@ -121,15 +128,11 @@ class UserBase(SQLModel):
     lname: str
     email: EmailStr = Field(unique=True)
     
-    @model_validator(mode="before")
-    def validate_and_normalize_name(cls, values):
-        f = values.get("fname")
-        l = values.get("lname")
-        
-        if f:
-            values["fname"] = f.title()
-        if l:
-            values["lname"] = l.title()
+    @field_validator('fname', 'lname', mode="before")
+    def validate_and_normalize_name(cls, value):
+        if value:
+            return value.title()
+        return value
     
 class UserCreate(UserBase):
     password: str = Field(nullable=False)
@@ -151,3 +154,13 @@ class User(UserBase, table=True):
     #a way to define a method that acts like an attribute to check whether a user is an applicant without storing an additional field in the database. 
     # The method is computed on the fly whenever it's accessed.
 
+class UserLogin(SQLModel):
+    email: EmailStr
+    password: str
+
+class Token(SQLModel):
+    access_token : str
+    token_type: str
+
+class TokenData(BaseModel):
+    id: int | None = None

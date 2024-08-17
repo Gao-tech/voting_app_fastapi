@@ -23,6 +23,74 @@ def determine_winner(applicants):
 # 5. if the status changes:
 # 1) from default pending to approved then published will turn to public
 # 2) from default or any other to reject then published turns to private, and disable the applicant...
+@router.get("/applicants", response_model=list[Applicant])
+async def get_applicants(status: StatusURLChoice | None = None,
+                         q: Annotated[str | None, Query(max_length=20)] = None,
+                         session: Session = Depends(get_session),
+                         current_user: User = Depends(get_current_user, None)) -> list[Applicant]:
+    
+    # Base query for admins: they can see everything
+    query = select(Applicant)
+    
+    if current_user:
+        if current_user.is_admin:
+            # Admin: see all applications
+            query = select(Applicant)
+        else:
+            # Non-admin user: see published applications or their own
+            query = select(Applicant).where(
+                (Applicant.published == True) | (Applicant.user_id == current_user.id)
+            )
+    else:
+        # Unauthenticated user: see only published applications
+        query = select(Applicant).where(Applicant.published == True)
+        
+    applicant_list = session.exec(query).all()
+
+    # Apply status filter if provided
+    if status:
+        applicant_list = [app for app in applicant_list if app.status.value.lower() == status.value]
+    
+    # Apply search query filter if provided
+    if q:
+        applicant_list = [
+            app for app in applicant_list
+            if q.lower() in (app.fname + " " + app.lname).lower()
+            # Optionally add logic for filtering by position if needed
+        ]
+
+    return applicant_list
+
+# change status
+@router.put("/applicants/{applicant_id}", response_model=Applicant)
+async def update_applicant(applicant_id: int,
+                           applicant_data: ApplicantUpdate,
+                           session: Session = Depends(get_session),
+                           current_user: User = Depends(get_current_user)) -> Applicant:
+
+    applicant = session.get(Applicant, applicant_id)
+    
+    if not applicant:
+        raise HTTPException(status_code=404, detail="Applicant not found")
+    
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to update this applicant")
+
+    # Update the applicant with provided data
+    applicant_data_dict = applicant_data.model_dump(exclude_unset=True)
+    
+    # If status is changed to "Approved", set published to True
+    if applicant_data_dict.get('status') == StatusChoice.APPROVED:
+        applicant_data_dict['published'] = True
+    
+    for key, value in applicant_data_dict.items():
+        setattr(applicant, key, value)
+    
+    session.add(applicant)
+    session.commit()
+    session.refresh(applicant)
+
+    return applicant
 
 
 # 3. limit user can only vote five application no matter it is first priority or second. -> votes
@@ -66,9 +134,14 @@ async def cast_vote(applicant_position_id: int, user_id: int, vote_dir: int, ses
     session.commit()
     return {"message": "Vote cast successfully"}
 
+# 8 。 check the enum class. why it is only Uppercase all the items. field_validator seems doesn't work for Enum class
+# 9.  the hashed password. When upate, delete
 
+
+#2. need to build a request in postman
 
 # 2. Done the post part. still needs to do patch part. limit 2 positions - applicant
+
 
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
 @router.patch("/applicants/{applicant_id}", response_model=Applicant)
