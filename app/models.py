@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from pydantic.types import conint
+from sqlalchemy import Column
 from sqlmodel import SQLModel, Field, Relationship
 
 
@@ -42,7 +43,6 @@ class Priority(int, Enum):
     PRIORITY_1 = 1
     PRIORITY_2 = 2
 
-
 class ExperienceBase(SQLModel):
     title: str
     description: str = Field(None, max_length=100)
@@ -52,6 +52,11 @@ class Experience(ExperienceBase, table=True):
     id: int = Field(default=None, primary_key=True)
     applicant: "Applicant" = Relationship(back_populates="experience")
 
+# class PositionBase(SQLModel):
+#     position: PositionChoice | None = None
+#     priority: Priority | None = None
+#     applicant_id: int | None = Field(default=None, foreign_key="applicant.id")
+    
 class PositionBase(SQLModel):
     position: PositionChoice | None = None
     priority: Priority | None = None
@@ -100,7 +105,7 @@ class ApplicantCreate(SQLModel):
     position: list[Position] | None =  None
 
 class Applicant(ApplicantBase, table=True):
-    id: int = Field(default=None, primary_key=True) 
+    id: int | None = Field(default=None, primary_key=True) 
     user_id: int = Field(default=None, foreign_key="user.id", ondelete="CASCADE", nullable=False)
     experience: list[Experience] = Relationship(back_populates="applicant")
     position: list[Position] = Relationship(back_populates="applicant")
@@ -140,7 +145,7 @@ class UserCreate(UserBase):
 class UserShow(UserBase):
     created_at: datetime.datetime = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
 
-class User(UserBase, table=True):
+class User(UserBase, table=True): # reserved when querying, use "user"
     id: int = Field(default=None, primary_key=True)
     password: str = Field(nullable=False)
 
@@ -150,7 +155,7 @@ class User(UserBase, table=True):
 
     @property
     def is_applicant(self) -> bool:
-        return self.if_applicant is not None
+        return self.applicant is not None
     #a way to define a method that acts like an attribute to check whether a user is an applicant without storing an additional field in the database. 
     # The method is computed on the fly whenever it's accessed.
 
