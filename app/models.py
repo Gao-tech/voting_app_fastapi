@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from typing import Optional
+from typing import Annotated, Optional
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from pydantic.types import conint
 from sqlalchemy import Column
@@ -75,7 +75,11 @@ class Position(PositionBase, table=True):
 class VoteBase(SQLModel):
     app_pos_id: int = Field(foreign_key="position.id", primary_key=True, ondelete="CASCADE")
     user_id: int = Field(foreign_key="user.id",primary_key=True, ondelete="CASCADE")
-    dir: conint(le=1)  #type: ignore
+    dir: Annotated [int, Field(ge=0, le=1)]
+
+class VoteCreate(SQLModel):
+    app_pos_id: int
+    dir: Annotated[int, Field(ge=0, le=1)]
 
 class Vote(VoteBase, table=True):
     user: "User" = Relationship(back_populates="votes")
@@ -94,7 +98,7 @@ class ApplicantBase(SQLModel):
     def title_case_status(cls, value):
         return value.title()
     
-class ApplicantCreate(SQLModel):
+class ApplicantCreate(SQLModel): # will get user_id from JWT token
     fname: str
     lname: str
     email: EmailStr
