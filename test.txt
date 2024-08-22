@@ -1,24 +1,4 @@
-# 1. SELECTION LOGIC
-#consider experience  +5 and 1st priority +5
-def determine_winner(applicants):
-    # Sort applicants by score, then by priority (1 takes precedence over 2)
-    applicants.sort(key=lambda x: (x['score'], x['priority']), reverse=True)
-
-    # Handle tie scenarios
-    top_applicants = [app for app in applicants if app['score'] == applicants[0]['score']]
-    
-    if len(top_applicants) > 1:
-        # If tied and priorities match, check experience
-        for app in top_applicants:
-            if app['priority'] == 1 and app['experience'] > max(app['experience'] for app in top_applicants if app['priority'] == 1):
-                app['score'] += 5
-    
-    # Re-sort after experience adjustment
-    applicants.sort(key=lambda x: (x['score'], x['priority']), reverse=True)
-    
-    return applicants[0]  # Return the applicant with the highest score and priority
-
-
+# 1 if getting the same number of vote for one position of differnt applicant, check if it is their first priority
 
 # 5. if the status changes:
 # 1) from default pending to approved then published will turn to public
@@ -146,10 +126,11 @@ async def cast_vote(applicant_position_id: int, user_id: int, vote_dir: int, ses
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
 @router.patch("/applicants/{applicant_id}", response_model=Applicant)
 
-# 6  Done  -> Define priority only to be 1 and 2
+# 6  Done  -> Define priority only to be 1 and 2, but haven't done that they cannot be the same number.
 
 # Done 4. if user is applicant  -> user  
-
+ 
+ #But only show correlated user_id or show all the user_informate?
 
 # @property
 

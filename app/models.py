@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Annotated, Optional
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from pydantic.types import conint
-from sqlalchemy import Column
+from sqlalchemy import Column, Index
 from sqlmodel import SQLModel, Field, Relationship
 
 
@@ -76,6 +76,9 @@ class VoteBase(SQLModel):
     app_pos_id: int = Field(foreign_key="position.id", primary_key=True, ondelete="CASCADE")
     user_id: int = Field(foreign_key="user.id",primary_key=True, ondelete="CASCADE")
     dir: Annotated [int, Field(ge=0, le=1)]
+    # improve the speed of queries by adding index
+    class Config:
+        indexes = [Index("idx_user_app_pos", "user_id", "app_pos_id")]
 
 class VoteCreate(SQLModel):
     app_pos_id: int
