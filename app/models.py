@@ -46,16 +46,11 @@ class Priority(int, Enum):
 class ExperienceBase(SQLModel):
     title: str
     description: str = Field(None, max_length=100)
-    applicant_id: int | None = Field(default=None, foreign_key="applicant.id")  
+    applicant_id: int | None = Field(default=None, foreign_key="applicant.id") 
 
 class Experience(ExperienceBase, table=True):
     id: int = Field(default=None, primary_key=True)
     applicant: "Applicant" = Relationship(back_populates="experience")
-
-# class PositionBase(SQLModel):
-#     position: PositionChoice | None = None
-#     priority: Priority | None = None
-#     applicant_id: int | None = Field(default=None, foreign_key="applicant.id")
     
 class PositionBase(SQLModel):
     position: PositionChoice | None = None
@@ -76,7 +71,7 @@ class VoteBase(SQLModel):
     app_pos_id: int = Field(foreign_key="position.id", primary_key=True, ondelete="CASCADE")
     user_id: int = Field(foreign_key="user.id",primary_key=True, ondelete="CASCADE")
     dir: Annotated [int, Field(ge=0, le=1)]
-    # improve the speed of queries by adding index
+    # improve the speed of queries by adding
     class Config:
         indexes = [Index("idx_user_app_pos", "user_id", "app_pos_id")]
 

@@ -1,4 +1,5 @@
-# 1 if getting the same number of vote for one position of differnt applicant, check if it is their first priority
+1. if getting the same number of vote for one position of differnt applicant, check if it is their first priority
+2. when create user, if the email is the same, it should raise an exception not an internal server error
 
 # 5. if the status changes:
 # 1) from default pending to approved then published will turn to public
