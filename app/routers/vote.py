@@ -14,7 +14,7 @@ async def get_vote(vote: VoteCreate, session: Session=Depends(get_session), curr
     #Check if the applicant_postion exisits in the Postion table
     positin = session.exec(select(Position).where(Position.id==vote.app_pos_id)).first()
     if not positin:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Applicant position with ID{vote.app_pos_id} doesn't exit.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The Applicant with position of ID{vote.app_pos_id} doesn't exit.")
 
     #Check if the user wants to vote
     if (vote.dir==1):
@@ -22,7 +22,7 @@ async def get_vote(vote: VoteCreate, session: Session=Depends(get_session), curr
         found_vote = session.exec(select(Vote).where(Vote.app_pos_id==vote.app_pos_id, Vote.user_id==current_user.id))
         if found_vote:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, 
-                detail=f"User with ID {current_user.id} has already voted for this applicant")
+                detail=f"User with ID {current_user.id} has already voted for {vote.app_pos_id} applicant with the position")
         #check if the user has already voted 5 times
         total_vote = session.exec(select(Vote).where(Vote.user_id==current_user.id)).all()
         if len(total_vote) >= 5:

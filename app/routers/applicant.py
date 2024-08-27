@@ -17,16 +17,14 @@ async def get_applicants(status: StatusURLChoice | None =  None,
 
     applicant_list = session.exec(select(Applicant)).all()
 
-    # Query to calculate total votes for each applicant, broken down by each position
-    # query = (select(
-    #         Position.applicant_id.label("applicant_id"),
-    #         Position.id.label("position_id"),
-    #         func.count(Vote.app_pos_id).label("vote_count"))
+    # #Query to calculate total votes for each applicant, according to applied positions
+    # query = (select( Position.id.label("position_id"), func.count(Vote.app_pos_id).label("vote_count"))
     #     .join(Vote, Vote.app_pos_id == Position.id, isouter=True)  # Join Vote with Position on app_pos_id
-    #     .group_by(Position.applicant_id, Position.id))  # Group by both Applicant_id and Position_id
+    #     .group_by(Position.id))  # Group by Position_id
 
     # # Execute the query and fetch the results
     # applicant_list = session.exec(query).all()
+
     if status:
         applicant_list = [app for app in applicant_list if app.status.value.lower() == status.value]  #In enum status.value to get value
     #q will search the fullname and positions
@@ -43,12 +41,9 @@ def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
 
     applicant = session.get(Applicant, applicant_id)
     
-    # query = (select(
-    #         Position.applicant_id.label("applicant_id"),
-    #         Position.id.label("position_id"),
-    #         func.count(Vote.app_pos_id).label("vote_count"))
+    # query = (select(Position.id.label("position_id"),func.count(Vote.app_pos_id).label("vote_count"))
     #     .join(Vote, Vote.app_pos_id == Position.id, isouter=True)  # Join Vote with Position on app_pos_id
-    #     .group_by(Position.applicant_id, Position.id))  # Group by both Applicant_id and Position_id
+    #     .group_by(Position.id))  # Group by Position_id
 
     # # Execute the query and fetch the results
     # applicant = session.exec(query).first()
@@ -57,21 +52,6 @@ def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
 
     return applicant
-
-
-#make a new endpoint to make sure to check positions before create applicant.
-@router.post("/apply/{applicant_id}", status_code=status.HTTP_201_CREATED)
-def apply_for_positions(applicant_id: int, session: Session=Depends(get_session), current_user: User=Depends(get_session)): 
-    # Validate the number of positions the applicant is applying for
-    current_positions_count = len(list(session.exec(
-        select(Position).where(Position.applicant_id == applicant_id), Applicant.user_id==current_user.id)))
-    
-   # Validate that the applicant is not applying for more than 2 positions
-    if current_positions_count >= 2:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                            detail="An applicant can only apply for a maximum of two positions.")
-    session.commit()
-    return {"message": "Positions applied successfully."}
 
 
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
@@ -92,7 +72,16 @@ async def create_applicant(applicant_data: ApplicantCreate,
     session.add(new_applicant)
     session.commit()  # Commit to generate the applicant.id
     session.refresh(new_applicant)  # Refresh to get the id
-   
+
+    if len(position_data) > 2:
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="You can only select up to two positions")
+
+    if len(position_data) == 2:
+            if position_data[0]["position"] == position_data[1]["position"]:
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Positions must be different.")
+            if position_data[0]["priority"] == position_data[1]["priority"]:
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Priority must be different.") 
+
     for experience_data in applicant_data.experience:
         experience_obj = Experience(
             title=experience_data.title, 
@@ -105,6 +94,7 @@ async def create_applicant(applicant_data: ApplicantCreate,
             position=position_data.position,
             priority=position_data.priority,
             applicant_id=new_applicant.id)   
+
         session.add(position_obj)
    
     session.commit()  #after commit() will get id, then refresh to get all the data including primary key
@@ -150,10 +140,19 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
 
     if db_applicant.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this applicant")
+    
+    updated_applicant = updated_applicant.model_dump() # convert to a dictionary
+    position_data =  updated_applicant.pop('position', None) #remove position_data
+    experience_data = updated_applicant.pop('experience', None) #remove experience_data
+
+    updated_applicant = Applicant(user_id=current_user.id, **updated_applicant)
+    session.add(new_applicant)
+    session.commit()  # Commit to generate the applicant.id
+    session.refresh(new_applicant)  # Refresh to get the id
 
     # check the amount of postions, no more than 2.
-    current_positions_count = len(list(session.exec(
-        select(Position).where(Position.applicant_id == applicant_id))))
+    position_query = session.exec(select(Position).where(Position.applicant_id == applicant_id)).all()
+    current_positions_count = len(list(position_query))
     if updated_applicant.position:
         new_positions_count = len(updated_applicant.position)
         if current_positions_count + new_positions_count > 2:
@@ -162,9 +161,13 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
         
     # Replace the existing `db_applicant` with the fields provided in `updated_applicant`
     updated_data = updated_applicant.model_dump(exclude_unset=True)
+
     for key, value in updated_data.items():
         setattr(db_applicant, key, value)
-    
+    if updated_applicant.position:
+        db_applicant.position = [Position(**p.model_dump()) for p in updated_applicant.position]
+
+    session.add(db_applicant)
     session.commit()
     session.refresh(db_applicant)
     
