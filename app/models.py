@@ -66,18 +66,22 @@ class Position(PositionBase, table=True):
     applicant: "Applicant" = Relationship(back_populates="position")
     votes: list["Vote"] = Relationship(back_populates="position")
 
-# Vote model with a foreign key to Position
+# Position and user_id two foreign keys as composite key
 class VoteBase(SQLModel):
     app_pos_id: int = Field(foreign_key="position.id", primary_key=True, ondelete="CASCADE")
     user_id: int = Field(foreign_key="user.id",primary_key=True, ondelete="CASCADE")
-    dir: Annotated [int, Field(ge=0, le=1)]
-    # improve the speed of queries by adding
+    # dir: Annotated [int, Field(ge=0, le=1)]
+    
     class Config:
-        indexes = [Index("idx_user_app_pos", "user_id", "app_pos_id")]
+        indexes = [Index("idx_user_app_pos", "user_id", "app_pos_id")]# improve the speed of queries by adding index
 
-class VoteCreate(SQLModel):
+class VoteUpdate(SQLModel):
     app_pos_id: int
-    dir: Annotated[int, Field(ge=0, le=1)]
+    # dir: Annotated[int, Field(ge=0, le=1)]  
+
+class Vote(SQLModel):
+    app_pos_id: int
+    # dir: Annotated[int, Field(ge=0, le=1)] 
 
 class Vote(VoteBase, table=True):
     user: "User" = Relationship(back_populates="votes")

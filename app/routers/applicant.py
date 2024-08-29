@@ -116,7 +116,7 @@ async def delete_applicant(applicant_id: Annotated[int, Path(title="The Applican
     if applicant.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this applicant")
 
-    # Manually delete related records
+    # Manually delete related records of Experience and Position in the nested tables and then delete appliant
     session.exec(delete(Experience).where(Experience.applicant_id == applicant_id))
     session.exec(delete(Position).where(Position.applicant_id == applicant_id))
 
