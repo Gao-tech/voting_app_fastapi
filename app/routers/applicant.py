@@ -68,7 +68,7 @@ async def create_applicant(applicant_data: ApplicantCreate,
     position_data =  applicant_data_dict.pop('position', None) #remove position_data
     experience_data = applicant_data_dict.pop('experience', None) #remove experience_data
 
-    new_applicant = Applicant(user_id=current_user.id, **applicant_data_dict)
+    new_applicant = Applicant(user_id=current_user.id, **applicant_data_dict) # convert to pydantic model with user.id from TWJ token
     session.add(new_applicant)
     session.commit()  # Commit to generate the applicant.id
     session.refresh(new_applicant)  # Refresh to get the id
@@ -140,32 +140,57 @@ async def update_applicant(applicant_id: Annotated[int, Path(title="The Applican
 
     if db_applicant.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this applicant")
-    
-    updated_applicant = updated_applicant.model_dump() # convert to a dictionary
-    position_data =  updated_applicant.pop('position', None) #remove position_data
-    experience_data = updated_applicant.pop('experience', None) #remove experience_data
 
-    updated_applicant = Applicant(user_id=current_user.id, **updated_applicant)
-    session.add(new_applicant)
-    session.commit()  # Commit to generate the applicant.id
-    session.refresh(new_applicant)  # Refresh to get the id
-
-    # check the amount of postions, no more than 2.
-    position_query = session.exec(select(Position).where(Position.applicant_id == applicant_id)).all()
-    current_positions_count = len(list(position_query))
-    if updated_applicant.position:
-        new_positions_count = len(updated_applicant.position)
-        if current_positions_count + new_positions_count > 2:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                                detail="An applicant can only apply for a maximum of two positions.")
-        
-    # Replace the existing `db_applicant` with the fields provided in `updated_applicant`
+    # convert to a dictionary, #remove position and experiences data for the format issue and will add later
     updated_data = updated_applicant.model_dump(exclude_unset=True)
+
+    # print(f"Updated data: {updated_data}") ## test
+
+    updated_positions = updated_data.pop('position', None)
+    updated_experiences = updated_data.pop('experience', None)
+
+    # print(f"Updated experiences extracted: {updated_experiences}") ## test
 
     for key, value in updated_data.items():
         setattr(db_applicant, key, value)
-    if updated_applicant.position:
-        db_applicant.position = [Position(**p.model_dump()) for p in updated_applicant.position]
+
+    # The applicant offers all the postions data, then we don't need to compare new and the ones in db
+    if updated_positions:
+        #remove from database first
+        session.exec(delete(Position).where(Position.applicant_id == db_applicant.id)) 
+        # Validate and add new positions
+        if len(updated_positions) > 2:
+            raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="You can only select up to two positions")
+
+        if len(updated_positions) == 2:
+            if updated_positions[0]["position"] == updated_positions[1]["position"]:
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Positions must be different.")
+            if updated_positions[0]["priority"] == updated_positions[1]["priority"]:
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="Priority must be different.") 
+
+        # add updated positions
+        for pos in updated_positions:
+            new_position = Position(
+                position=pos["position"],
+                priority=pos["priority"],
+                applicant_id=db_applicant.id
+            )
+            session.add(new_position)
+
+    # Update the experiences if provided
+    if updated_experiences:
+        # Clear existing experiences
+        session.exec(delete(Experience).where(Experience.applicant_id == db_applicant.id))
+        # print(f"Updating experiences:{updated_experiences}") ## test
+
+        # Add new experiences
+        for exp in updated_experiences:
+            new_experience = Experience(
+                title=exp["title"],
+                description=exp["description"],
+                applicant_id=db_applicant.id
+            )
+            session.add(new_experience)
 
     session.add(db_applicant)
     session.commit()

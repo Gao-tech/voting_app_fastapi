@@ -123,12 +123,11 @@ class ApplicantUpdate(SQLModel):
     fname: str | None = None
     lname: str | None = None
     email: EmailStr | None = None
-    position: list[PositionChoice] | None = None
-    priority: Priority | None = None
+    position: list[Position] | None = None
     status: StatusChoice | None = None
     published: bool | None = False
     department: DepartmentChoice | None = None
-    exprience: str | None =  None
+    experience: list[Experience] | None = None
 
 class UserBase(SQLModel):
     fname: str
