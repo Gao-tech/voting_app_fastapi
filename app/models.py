@@ -73,15 +73,11 @@ class VoteBase(SQLModel):
     # dir: Annotated [int, Field(ge=0, le=1)]
     
     class Config:
-        indexes = [Index("idx_user_app_pos", "user_id", "app_pos_id")]# improve the speed of queries by adding index
+        indexes = [Index("user_id", "app_pos_id")]# improve the speed of queries by adding index
 
 class VoteUpdate(SQLModel):
     app_pos_id: int
     # dir: Annotated[int, Field(ge=0, le=1)]  
-
-class Vote(SQLModel):
-    app_pos_id: int
-    # dir: Annotated[int, Field(ge=0, le=1)] 
 
 class Vote(VoteBase, table=True):
     user: "User" = Relationship(back_populates="votes")
@@ -91,10 +87,10 @@ class Vote(VoteBase, table=True):
 class ApplicantBase(SQLModel):
     fname: str = Field(index=True)
     lname: str = Field(index=True)
-    email: EmailStr = Field(index=True)
-    status: StatusChoice =Field(default="Pending", index=True)  
+    email: EmailStr = Field(index=True)  
     department: DepartmentChoice = Field(default=None, index=True)
-    published: bool = False
+    status: StatusChoice =Field(default="Pending", index=True) #admin?
+    published: bool = False #admin?
     
     @field_validator("status", mode="before")
     def title_case_status(cls, value):
@@ -121,6 +117,19 @@ class Applicant(ApplicantBase, table=True):
     # a specified created_at value, the field is automatically populated with the current UTC datetime.
 
     class Config:                # update to the pydantic V2.
+        from_attributes = True
+
+class PositionWithVotes(SQLModel):
+    id: int  # Assuming 'id' is needed for position identification
+    position: str  # Position name if applicable
+    priority: Optional[int] = None  # Keep if priority is relevant, or adjust as needed
+    vote_count: Optional[int] = 0  # Field specifically for the vote count
+
+class ApplicantWithPositions(ApplicantBase):
+    id: int
+    position: list[PositionWithVotes]  # List of positions with votes
+
+    class Config:
         from_attributes = True
 
 class ApplicantUpdate(SQLModel):

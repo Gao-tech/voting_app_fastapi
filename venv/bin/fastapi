@@ -1,4 +1,4 @@
-#!/Users/gaojie/projects/voting_app_FastAPI/venv/bin/python3.12
+#!/Users/gaojie/projects/voting_app_fastapi/venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys

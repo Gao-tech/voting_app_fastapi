@@ -1,57 +1,130 @@
 from fastapi import FastAPI, APIRouter, Path, Query, Response, status, HTTPException, Depends
 from sqlalchemy import delete, func
-from ..models import Applicant, ApplicantCreate, ApplicantUpdate, Experience, PositionURLChoice, StatusURLChoice, Position, User, Vote
+from ..models import Applicant, ApplicantCreate, ApplicantUpdate, ApplicantWithPositions, Experience, Position, PositionWithVotes, StatusURLChoice, User, Vote
 from sqlmodel import Session, select
 from typing import Annotated
 from ..db import get_session
 from .. oauth2 import get_current_user
+from sqlalchemy.orm import selectinload
 
 
 router = APIRouter(tags=['Applicants']) #prefix="/posts"
 
 
-@router.get("/applicants", response_model=list[Applicant])
+@router.get("/applicants", response_model=list[ApplicantWithPositions])
 async def get_applicants(status: StatusURLChoice | None =  None,
                          q: Annotated[str| None, Query(max_length = 20)] = None,
-                         session: Session=Depends(get_session)) -> list[Applicant]:
+                         session: Session=Depends(get_session)) -> list[ApplicantWithPositions]:
 
-    applicant_list = session.exec(select(Applicant)).all()
+    # Fetch all applicants with their positions pre-loaded
+    applicants = session.exec(select(Applicant).options(selectinload(Applicant.position))).all()
 
-    # #Query to calculate total votes for each applicant, according to applied positions
-    # query = (select( Position.id.label("position_id"), func.count(Vote.app_pos_id).label("vote_count"))
-    #     .join(Vote, Vote.app_pos_id == Position.id, isouter=True)  # Join Vote with Position on app_pos_id
-    #     .group_by(Position.id))  # Group by Position_id
+    #Query votes for each position
+    vote_counts_query=(
+        select(Position.id, func.count(Vote.app_pos_id).label("vote_counts"))
+        .join(Vote, Vote.app_pos_id == Position.id, isouter=True)
+        .group_by(Position.id)
+    )
+    vote_counts = session.exec(vote_counts_query).all()
 
-    # # Execute the query and fetch the results
-    # applicant_list = session.exec(query).all()
+    # create a dictionary to map position IDs to their vote counts
+    vote_counts_dict = {position_id: vote_count for position_id, vote_count in vote_counts}
 
+    # Initialize the list of applicants to return
+    applicant_list = []
+
+    #Filter by status, admin change from pending to approved or rejected
     if status:
-        applicant_list = [app for app in applicant_list if app.status.value.lower() == status.value]  #In enum status.value to get value
-    #q will search the fullname and positions
-    if q:
-        applicant_list = [app for app in applicant_list if q.lower() in (app.fname +" "+ app.lname).lower() or PositionURLChoice ]
+        applicants = [app for app in applicants if app.status.value.lower() == status.value]  #In enum status.value to get value
+
+    #iterates over each applicant in the list of applicants retrieved from the database
+    for applicant in applicants:
+        #query parameter q will search the fullname and positions
+        # if q:
+        #     applicants= [app for app in applicants if q.lower() in (app.fname +" "+ app.lname).lower() or PositionURLChoice]
+        if q and not (q.lower() in (applicant.fname + " " + applicant.lname).lower()):
+            continue
+
+         # Assemble positions with vote counts for each applicant
+        positions_with_votes =[
+            PositionWithVotes(
+                id=position.id,
+                position=position.position,
+                priority=position.priority,
+                vote_count=vote_counts_dict.get(position.id, 0)
+            ) #The vote_count is retrieved from the vote_counts dictionary
+
+            #For each applicant, iterates through their associated positions.Part of list comprehension
+            for position in applicant.position
+        ]
+
+        """
+    applicant.positions = [
+    Position(id=1, name="Position A", priority=1),
+    Position(id=2, name="Position B", priority=2)]
+
+    vote_counts = {1: 5, 2: 3}
+
+    positions_with_votes = [
+    PositionWithVotes(id=1, name="Position A", priority=1, vote_count=5),
+    PositionWithVotes(id=2, name="Position B", priority=2, vote_count=3)
+]
+"""
+    # Create the ApplicantWithPositions object
+        applicant_with_positions = ApplicantWithPositions(
+            id=applicant.id,
+            fname=applicant.fname,
+            lname=applicant.lname,
+            status=applicant.status.value,
+            department=applicant.department,
+            email=applicant.email,
+            position=positions_with_votes # Include positions with vote counts
+        ) 
+
+        applicant_list.append(applicant_with_positions)
 
     return applicant_list
 
 
-@router.get("/applicants/{applicant_id}",response_model= Applicant)
+@router.get("/applicants/{applicant_id}", response_model=ApplicantWithPositions)
 def get_applicant(applicant_id: Annotated[int, Path(title="The Applicant ID")],
                   session: Session=Depends(get_session),
-                  current_user: User=Depends(get_current_user)) -> list[Applicant]:
+                  current_user: User=Depends(get_current_user)) -> ApplicantWithPositions:
 
-    applicant = session.get(Applicant, applicant_id)
-    
-    # query = (select(Position.id.label("position_id"),func.count(Vote.app_pos_id).label("vote_count"))
-    #     .join(Vote, Vote.app_pos_id == Position.id, isouter=True)  # Join Vote with Position on app_pos_id
-    #     .group_by(Position.id))  # Group by Position_id
-
-    # # Execute the query and fetch the results
-    # applicant = session.exec(query).first()
-
+    # applicant = session.get(Applicant, applicant_id)
+    applicant = session.exec(select(Applicant).where(Applicant.id==applicant_id).options(selectinload(Applicant.position))).first()
     if applicant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
 
-    return applicant
+    vote_counts_query=(
+        select(Position.id, func.count(Vote.app_pos_id).label("vote_counts"))
+        .join(Vote, Vote.app_pos_id==Position.id, isouter=True)
+        .group_by(Position.id)
+    )
+    vote_counts = session.exec(vote_counts_query).all()
+    # create a dictionary to map position IDs to their vote counts
+    vote_counts_dict = {position_id: vote_count for position_id, vote_count in vote_counts}
+
+    positions_with_votes =[
+        PositionWithVotes(
+            id=position.id,
+            position=position.position,
+            priority=position.priority,
+            vote_count=vote_counts_dict.get(position.id, 0)
+        )
+        for position in applicant.position
+    ]
+    applicant_with_positions = ApplicantWithPositions(
+        id=applicant.id,
+        fname=applicant.fname,
+        lname=applicant.lname,
+        status=applicant.status.value,
+        department=applicant.department,
+        email=applicant.email,
+        position=positions_with_votes
+    )
+
+    return applicant_with_positions
 
 
 @router.post("/applicants", status_code=status.HTTP_201_CREATED, response_model=Applicant)
