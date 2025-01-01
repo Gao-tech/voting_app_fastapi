@@ -2,7 +2,7 @@
 
 Inspired by my experiences at Kåren, where I observed challenges in student voting participation, this project aims to address usability concerns in voting systems. The existing tools often discouraged engagement due to their complexity, despite significant investments. This repository presents a voting system built with Python’s FastAPI framework, focusing on simplicity, security, and scalability.
 
-This project also provided a valuable opportunity to learn about data modeling and backend architecture while working with real-world business requirements.
+This project also provided a valuable opportunity to learn about data modeling and backend architecture.
 
 ---
 
@@ -73,12 +73,11 @@ This voting system was designed to prioritize:
 
 - **Data Modeling:** Designing relationships to meet complex business requirements.
 - **Backend Architecture:** Developing scalable, secure, and efficient backend logic.
-- **Framework Comparison:** 
-  - **Flask:** Previously used for a simpler complaint submission system. 
   - **FastAPI:** Selected for this project due to its performance and scalability for complex systems.
 
 ---
 
 ## 📂 Access the Code
 
-The code for this voting system is available in this repository. While it's a work in progress, it demonstrates the foundational structure and logic behind the application. Feel free to explore, contribute, or provide feedback!
+- It is tested in Postman
+- unicorn app.main:app --reload
