@@ -182,8 +182,6 @@ async def delete_applicant(applicant_id: Annotated[int, Path(title="The Applican
     applicant = session.get(Applicant, applicant_id)
     if applicant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The applicant with id {applicant_id} is not found")
-    if applicant.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this applicant")
     
     # Check if the current user is authorized to delete the applicant
     if applicant.user_id != current_user.id:
