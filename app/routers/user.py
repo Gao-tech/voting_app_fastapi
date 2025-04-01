@@ -21,7 +21,7 @@ async def create_user(user_data: UserCreate, session: Session=Depends(get_sessio
     return user
     
 
-@router.get("/users/{user_id}", status_code=status.HTTP_201_CREATED, response_model=UserShow)
+@router.get("/users/{user_id}", status_code=status.HTTP_200_OK, response_model=UserShow)
 async def get_users(
     user_id: Annotated[int, Path(title="The user id")],
     session: Session=Depends(get_session)) -> UserShow:
