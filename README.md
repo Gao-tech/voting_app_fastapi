@@ -1,4 +1,4 @@
-# User-Friendly Voting System with Python FastAPI
+# Voting System with Python FastAPI
 
 Inspired by my experiences at Kåren, where I observed challenges in student voting participation, this project aims to address usability concerns in voting systems. The existing tools often discouraged engagement due to their complexity, despite significant investments. This repository presents a voting system built with Python’s FastAPI framework, focusing on simplicity, security, and scalability.
 
