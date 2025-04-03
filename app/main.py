@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .routers import applicant, user, auth, vote
+from app.routers import applicant, user, auth, vote
 from app.db import init_db
 
 from contextlib import asynccontextmanager
