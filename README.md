@@ -80,4 +80,4 @@ This voting system was designed to prioritize:
 ## 📂 Access the Code
 
 - It is tested in Postman
-- unicorn app.main:app --reload
+- uvicorn app.main:app --reload
