@@ -81,3 +81,6 @@ This voting system was designed to prioritize:
 
 - It is tested in Postman
 - uvicorn app.main:app --reload
+
+In postgresql:
+- select * from "user"; // user is a reserved table name
